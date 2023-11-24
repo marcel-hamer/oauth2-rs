@@ -671,3 +671,10 @@ new_secret_type![
     #[derive(Clone, Deserialize, Serialize)]
     UserCode(String)
 ];
+new_secret_type![
+    ///
+    /// Client assertion containing the JWT data for Private Key JWT authorization.
+    ///
+    #[derive(Clone, Deserialize, Serialize)]
+    ClientAssertion(String)
+];

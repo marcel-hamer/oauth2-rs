@@ -107,7 +107,7 @@
 //!     RedirectUrl,
 //!     Scope,
 //!     TokenResponse,
-//!     TokenUrl
+//!     TokenUrl,
 //! };
 //! use oauth2::basic::BasicClient;
 //! use oauth2::reqwest::http_client;
@@ -520,7 +520,7 @@ pub use types::{
     DeviceAuthorizationUrl, DeviceCode, EndUserVerificationUrl, IntrospectionUrl,
     PkceCodeChallenge, PkceCodeChallengeMethod, PkceCodeVerifier, RedirectUrl, RefreshToken,
     ResourceOwnerPassword, ResourceOwnerUsername, ResponseType, RevocationUrl, Scope, TokenUrl,
-    UserCode, VerificationUriComplete,
+    UserCode, VerificationUriComplete, ClientAssertion
 };
 
 pub use revocation::{RevocableToken, RevocationErrorResponseType, StandardRevocableToken};
@@ -560,6 +560,8 @@ pub enum AuthType {
     RequestBody,
     /// The client_id and client_secret will be included using the basic auth authentication scheme.
     BasicAuth,
+    /// The client_id and client_assertion are included in the request body for authentication.
+    PrivateKeyJwt,
 }
 
 ///
@@ -847,6 +849,7 @@ where
             scopes: Vec::new(),
             token_url: self.token_url.as_ref(),
             _phantom: PhantomData,
+            client_assertion: None,
         }
     }
 
@@ -1604,6 +1607,7 @@ where
     scopes: Vec<Cow<'a, Scope>>,
     token_url: Option<&'a TokenUrl>,
     _phantom: PhantomData<(TE, TR, TT)>,
+    client_assertion: Option<&'a ClientAssertion>,
 }
 impl<'a, TE, TR, TT> ClientCredentialsTokenRequest<'a, TE, TR, TT>
 where
@@ -1686,6 +1690,12 @@ where
     where
         RE: Error + 'static,
     {
+        let mut params = vec![("grant_type", "client_credentials")];
+
+        if let Some(t) = self.client_assertion {
+            params.push(("client_assertion", t.secret()));
+        }
+
         Ok(endpoint_request(
             self.auth_type,
             self.client_id,
@@ -1696,8 +1706,15 @@ where
             self.token_url
                 .ok_or_else(|| RequestTokenError::Other("no token_url provided".to_string()))?
                 .url(),
-            vec![("grant_type", "client_credentials")],
+            params,
         ))
+    }
+
+    ///
+    /// Set the `client_assertion` field.
+    ///
+    pub fn set_client_assertion(&mut self, client_assertion: &'a ClientAssertion) {
+        self.client_assertion = Some(client_assertion);
     }
 }
 
@@ -1999,6 +2016,10 @@ fn endpoint_request<'a>(
             if let Some(ref client_secret) = client_secret {
                 params.push(("client_secret", client_secret.secret()));
             }
+        }
+        (AuthType::PrivateKeyJwt, _) => {
+            params.push(("client_id", client_id));
+            params.push(("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"));
         }
     }
 
