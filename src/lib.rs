@@ -949,6 +949,7 @@ where
             token,
             token_type_hint: None,
             _phantom: PhantomData,
+            client_assertion: None,
         })
     }
 
@@ -1740,6 +1741,7 @@ where
     introspection_url: &'a IntrospectionUrl,
 
     _phantom: PhantomData<(TE, TIR, TT)>,
+    client_assertion: Option<&'a ClientAssertion>,
 }
 
 impl<'a, TE, TIR, TT> IntrospectionRequest<'a, TE, TIR, TT>
@@ -1805,6 +1807,10 @@ where
             params.push(("token_type_hint", token_type_hint));
         }
 
+        if let Some(t) = self.client_assertion {
+            params.push(("client_assertion", t.secret()));
+        }
+
         Ok(endpoint_request(
             self.auth_type,
             self.client_id,
@@ -1843,6 +1849,13 @@ where
         let http_request = self.prepare_request()?;
         let http_response = http_client(http_request).await?;
         endpoint_response(http_response)
+    }
+
+    ///
+    /// Set the `client_assertion` field.
+    ///
+    pub fn set_client_assertion(&mut self, client_assertion: &'a ClientAssertion) {
+        self.client_assertion = Some(client_assertion);
     }
 }
 
